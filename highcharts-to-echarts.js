@@ -373,7 +373,10 @@
     }
     return data.map(function (d) {
       if (isObject(d)) {
-        return { name: d.name || d[dataKey] || '', value: d.value != null ? d.value : d.y };
+        var code = d[dataKey] || '';
+        // Resolve code to GeoJSON feature name via lookup
+        var name = d.name || _hcMapLookup[code.toUpperCase()] || _hcMapLookup[code.toLowerCase()] || code;
+        return { name: name, value: d.value != null ? d.value : d.y };
       }
       return d;
     });
@@ -490,7 +493,7 @@
         ec.data = convertPieData(resolved.data);
         // Donut: innerSize
         var innerSize = resolved.innerSize || resolved.innerRadius;
-        var outerSize = resolved.size || '75%';
+        var outerSize = resolved.size || '90%';
         if (innerSize) {
           var inner = isString(innerSize) ? innerSize : (isNumber(innerSize) ? innerSize + 'px' : innerSize + '%');
           var outer = isString(outerSize) ? outerSize : outerSize + '%';
@@ -707,9 +710,28 @@
   }
 
   function convertLabelFormat(format) {
-    // Convert HC label format tokens to ECharts formatter string
-    // {y} or {point.y} → {c}, {point.name} → {b}, {series.name} → {a}
+    // If format contains percentage or decimal formatting or HTML, return a function formatter
+    if (/\{point\.percentage|<[a-z]|:\.\d+f\}/.test(format)) {
+      return function (params) {
+        var str = format;
+        // Strip HTML tags
+        str = str.replace(/<[^>]+>/g, '');
+        // Replace tokens
+        str = str.replace(/\{point\.name\}/g, params.name || '');
+        str = str.replace(/\{point\.y\}/g, params.value != null ? params.value : '');
+        str = str.replace(/\{y\}/g, params.value != null ? params.value : '');
+        str = str.replace(/\{series\.name\}/g, params.seriesName || '');
+        // Handle {point.percentage:.1f} and variants
+        str = str.replace(/\{point\.percentage(?::\.(\d+)f)?\}/g, function (_, dec) {
+          var d = dec ? parseInt(dec, 10) : 1;
+          return params.percent != null ? params.percent.toFixed(d) : '';
+        });
+        return str;
+      };
+    }
+    // Simple format: use ECharts template strings
     return format
+      .replace(/<[^>]+>/g, '')
       .replace(/\{point\.y\}/g, '{c}')
       .replace(/\{y\}/g, '{c}')
       .replace(/\{point\.name\}/g, '{b}')
@@ -936,9 +958,9 @@
   // Section 9b: Map Support
   // ============================================================
 
-  // Convert Highcharts map GeoJSON (with hc-transform projections) to standard GeoJSON
-  // that ECharts can use. Strips the hc-transform and uses coordinates as-is,
-  // which works well enough for choropleth display.
+  // Build lookup from Highcharts map properties to country names
+  var _hcMapLookup = {};
+
   function registerHighchartsMap(hcConfig) {
     var series = hcConfig.series || [];
     series.forEach(function (s) {
@@ -946,13 +968,18 @@
         var geoJson = {
           type: 'FeatureCollection',
           features: s.mapData.features.map(function (f) {
-            // Map hc-key/hc-a2/name to ECharts-compatible properties
             var props = f.properties || {};
+            var name = props.name || props['hc-key'] || f.id || '';
+            // Build lookup: hc-a2, hc-key, iso-a3, id → name
+            if (props['hc-a2']) _hcMapLookup[props['hc-a2'].toUpperCase()] = name;
+            if (props['hc-key']) _hcMapLookup[props['hc-key'].toLowerCase()] = name;
+            if (props['iso-a3']) _hcMapLookup[props['iso-a3'].toUpperCase()] = name;
+            if (f.id) _hcMapLookup[f.id.toUpperCase()] = name;
             return {
               type: 'Feature',
               id: f.id || props['hc-key'] || props['hc-a2'],
               properties: {
-                name: props.name || props['hc-key'] || f.id,
+                name: name,
                 'hc-key': props['hc-key'],
                 'hc-a2': props['hc-a2'],
                 'iso-a3': props['iso-a3']
