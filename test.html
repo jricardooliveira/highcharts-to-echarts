@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HighchartsCompat Test Harness</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: #f5f5f5; padding: 20px; }
+    h1 { text-align: center; margin-bottom: 24px; color: #333; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(560px, 1fr)); gap: 20px; }
+    .chart-card { background: #fff; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); padding: 16px; }
+    .chart-card h3 { font-size: 14px; color: #666; margin-bottom: 8px; }
+    .chart-container { width: 100%; height: 360px; }
+    .error { color: #c00; font-size: 13px; padding: 8px; }
+  </style>
+</head>
+<body>
+  <h1>HighchartsCompat &mdash; Translation Layer Test Harness</h1>
+  <div class="grid" id="grid"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <script src="highcharts-to-echarts.js"></script>
+  <script>
+    var tests = [
+      // 1. Basic line with categories
+      {
+        name: '1. Basic Line (categories)',
+        config: {
+          chart: { type: 'line' },
+          title: { text: 'Monthly Temperatures' },
+          subtitle: { text: 'Source: Weather.com' },
+          xAxis: { categories: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'] },
+          yAxis: { title: { text: 'Temperature (\u00B0C)' } },
+          series: [
+            { name: 'Tokyo', data: [7.0,6.9,9.5,14.5,18.2,21.5,25.2,26.5,23.3,18.3,13.9,9.6] },
+            { name: 'London', data: [3.9,4.2,5.7,8.5,11.9,15.2,17.0,16.6,14.2,10.3,6.6,4.8] }
+          ]
+        }
+      },
+      // 2. Multi-series line with datetime axis
+      {
+        name: '2. Line (datetime axis)',
+        config: {
+          chart: { type: 'line' },
+          title: { text: 'Daily Visits' },
+          xAxis: { type: 'datetime' },
+          yAxis: { title: { text: 'Visits' } },
+          series: [{
+            name: 'Visits',
+            data: (function () {
+              var d = [], base = Date.UTC(2024, 0, 1);
+              for (var i = 0; i < 30; i++) d.push([base + i * 86400000, Math.floor(Math.random() * 500 + 200)]);
+              return d;
+            })()
+          }]
+        }
+      },
+      // 3. Stacked area
+      {
+        name: '3. Stacked Area',
+        config: {
+          chart: { type: 'area' },
+          title: { text: 'Stacked Area Chart' },
+          xAxis: { categories: ['Mon','Tue','Wed','Thu','Fri'] },
+          yAxis: { title: { text: 'Count' } },
+          plotOptions: { series: { stacking: 'normal' } },
+          series: [
+            { name: 'Emails', data: [50, 60, 45, 70, 55] },
+            { name: 'Calls', data: [30, 25, 40, 20, 35] },
+            { name: 'Meetings', data: [10, 15, 20, 12, 18] }
+          ]
+        }
+      },
+      // 4. Spline (smooth)
+      {
+        name: '4. Spline (smooth line)',
+        config: {
+          chart: { type: 'spline' },
+          title: { text: 'Wind Speed' },
+          xAxis: { categories: ['00:00','03:00','06:00','09:00','12:00','15:00','18:00','21:00'] },
+          yAxis: { title: { text: 'm/s' } },
+          series: [
+            { name: 'Hestavollane', data: [3.7,3.3,3.9,5.1,3.5,3.8,4.0,5.0] },
+            { name: 'Vik', data: [0.2,0.1,0.2,0.5,0.3,2.2,1.4,2.6], dashStyle: 'Dash' }
+          ]
+        }
+      },
+      // 5. Column (single series)
+      {
+        name: '5. Column Chart',
+        config: {
+          chart: { type: 'column' },
+          title: { text: 'Quarterly Revenue' },
+          xAxis: { categories: ['Q1','Q2','Q3','Q4'] },
+          yAxis: { title: { text: 'Revenue ($M)' } },
+          series: [{ name: 'Revenue', data: [42, 58, 63, 71] }]
+        }
+      },
+      // 6. Stacked column
+      {
+        name: '6. Stacked Column',
+        config: {
+          chart: { type: 'column' },
+          title: { text: 'Fruit Consumption' },
+          xAxis: { categories: ['Apples','Oranges','Pears','Grapes','Bananas'] },
+          yAxis: { title: { text: 'Total' } },
+          plotOptions: { column: { stacking: 'normal' } },
+          series: [
+            { name: 'John', data: [5, 3, 4, 7, 2] },
+            { name: 'Jane', data: [2, 2, 3, 2, 1] },
+            { name: 'Joe', data: [3, 4, 4, 2, 5] }
+          ]
+        }
+      },
+      // 7. Bar chart (horizontal) - tests axis swap
+      {
+        name: '7. Horizontal Bar (axis swap test)',
+        config: {
+          chart: { type: 'bar' },
+          title: { text: 'Population by Country' },
+          xAxis: { categories: ['China','India','USA','Indonesia','Brazil'] },
+          yAxis: { title: { text: 'Population (millions)' } },
+          series: [{ name: 'Population', data: [1439, 1380, 331, 273, 212] }]
+        }
+      },
+      // 8. Pie chart
+      {
+        name: '8. Pie Chart',
+        config: {
+          chart: { type: 'pie' },
+          title: { text: 'Browser Market Share' },
+          series: [{
+            name: 'Browsers',
+            data: [
+              { name: 'Chrome', y: 64.02 },
+              { name: 'Safari', y: 18.78 },
+              { name: 'Firefox', y: 4.18 },
+              { name: 'Edge', y: 4.12 },
+              { name: 'Other', y: 8.90 }
+            ]
+          }]
+        }
+      },
+      // 9. Donut chart (pie with innerSize)
+      {
+        name: '9. Donut Chart (innerSize)',
+        config: {
+          chart: { type: 'pie' },
+          title: { text: 'Device Share' },
+          plotOptions: { pie: { innerSize: '50%' } },
+          series: [{
+            name: 'Devices',
+            data: [
+              { name: 'Mobile', y: 58.9 },
+              { name: 'Desktop', y: 31.2 },
+              { name: 'Tablet', y: 9.9 }
+            ]
+          }]
+        }
+      },
+      // 10. Scatter chart
+      {
+        name: '10. Scatter Chart',
+        config: {
+          chart: { type: 'scatter' },
+          title: { text: 'Height vs Weight' },
+          xAxis: { title: { text: 'Height (cm)' } },
+          yAxis: { title: { text: 'Weight (kg)' } },
+          series: [{
+            name: 'Female',
+            color: '#FF6B6B',
+            data: [[161,51],[167,59],[159,49],[157,63],[155,53],[170,59],[159,47],[166,69],[176,66],[160,75]]
+          }, {
+            name: 'Male',
+            color: '#4ECDC4',
+            data: [[174,65],[175,71],[193,80],[186,72],[187,78],[181,74],[184,86],[178,55],[182,88],[177,73]]
+          }]
+        }
+      },
+      // 11. Bubble chart
+      {
+        name: '11. Bubble Chart',
+        config: {
+          chart: { type: 'bubble' },
+          title: { text: 'Sugar vs Fat (Bubble = Calories)' },
+          xAxis: { title: { text: 'Sugar (g)' } },
+          yAxis: { title: { text: 'Fat (g)' } },
+          series: [{
+            name: 'Foods',
+            data: [
+              { x: 95, y: 95, z: 13.8 },
+              { x: 86.5, y: 102.9, z: 14.7 },
+              { x: 80.8, y: 91.5, z: 15.8 },
+              { x: 80.4, y: 102.5, z: 12 },
+              { x: 80.3, y: 86.1, z: 11.8 },
+              { x: 78.4, y: 70.1, z: 16.6 },
+              { x: 74.2, y: 68.5, z: 14.5 },
+              { x: 73.5, y: 83.1, z: 10 },
+              { x: 71, y: 93.2, z: 24.7 }
+            ]
+          }]
+        }
+      },
+      // 12. Combo chart (column + line, dual y-axis)
+      {
+        name: '12. Combo (Column + Line, dual Y-axis)',
+        config: {
+          title: { text: 'Rainfall & Temperature' },
+          xAxis: { categories: ['Jan','Feb','Mar','Apr','May','Jun'] },
+          yAxis: [
+            { title: { text: 'Rainfall (mm)' } },
+            { title: { text: 'Temperature (\u00B0C)' }, opposite: true }
+          ],
+          series: [
+            { name: 'Rainfall', type: 'column', data: [49, 71, 106, 129, 144, 176] },
+            { name: 'Temperature', type: 'line', yAxis: 1, data: [7, 6.9, 9.5, 14.5, 18.4, 21.5], color: '#FF5733' }
+          ]
+        }
+      },
+      // 13. Percent stacking
+      {
+        name: '13. Percent Stacked Column',
+        config: {
+          chart: { type: 'column' },
+          title: { text: 'Market Share (%)' },
+          xAxis: { categories: ['2020','2021','2022','2023'] },
+          yAxis: { title: { text: 'Percent' } },
+          plotOptions: { series: { stacking: 'percent' } },
+          series: [
+            { name: 'Product A', data: [30, 40, 35, 50] },
+            { name: 'Product B', data: [50, 30, 45, 30] },
+            { name: 'Product C', data: [20, 30, 20, 20] }
+          ]
+        }
+      },
+      // 14. Custom tooltip formatter
+      {
+        name: '14. Custom Tooltip Formatter',
+        config: {
+          chart: { type: 'column' },
+          title: { text: 'Sales by Region' },
+          xAxis: { categories: ['North','South','East','West'] },
+          yAxis: { title: { text: 'Sales ($K)' } },
+          tooltip: {
+            formatter: function () {
+              return '<b>' + this.series.name + '</b><br/>' +
+                     this.x + ': $' + this.y + 'K';
+            }
+          },
+          series: [
+            { name: '2023', data: [120, 90, 150, 80] },
+            { name: '2024', data: [140, 110, 170, 95] }
+          ]
+        }
+      },
+      // 15. Custom colors + legend disabled
+      {
+        name: '15. Custom Colors, No Legend',
+        config: {
+          chart: { type: 'line' },
+          title: { text: 'Custom Palette' },
+          colors: ['#E74C3C', '#3498DB', '#2ECC71', '#F39C12'],
+          legend: { enabled: false },
+          xAxis: { categories: ['A','B','C','D','E'] },
+          yAxis: { title: { text: 'Value' } },
+          series: [
+            { name: 'S1', data: [1, 3, 2, 5, 4] },
+            { name: 'S2', data: [5, 4, 3, 2, 1] },
+            { name: 'S3', data: [3, 3, 3, 3, 3] }
+          ]
+        }
+      }
+    ];
+
+    // Render all test charts
+    var grid = document.getElementById('grid');
+    tests.forEach(function (test, i) {
+      var card = document.createElement('div');
+      card.className = 'chart-card';
+
+      var heading = document.createElement('h3');
+      heading.textContent = test.name;
+      card.appendChild(heading);
+
+      var container = document.createElement('div');
+      container.className = 'chart-container';
+      container.id = 'chart-' + i;
+      card.appendChild(container);
+
+      grid.appendChild(card);
+
+      try {
+        HighchartsCompat.chart(container, test.config);
+        console.log('[OK] ' + test.name);
+        // Log the converted config for inspection
+        console.log('  Converted option:', JSON.parse(JSON.stringify(
+          HighchartsCompat.convert(test.config),
+          function (k, v) { return typeof v === 'function' ? '[Function]' : v; }
+        )));
+      } catch (err) {
+        var errDiv = document.createElement('div');
+        errDiv.className = 'error';
+        errDiv.textContent = 'Error: ' + err.message;
+        card.appendChild(errDiv);
+        console.error('[FAIL] ' + test.name, err);
+      }
+    });
+  </script>
+</body>
+</html>

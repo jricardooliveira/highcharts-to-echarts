@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Highcharts vs ECharts (via HighchartsCompat) — Side by Side</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: #f0f2f5; padding: 20px; }
+    h1 { text-align: center; margin-bottom: 8px; color: #222; font-size: 22px; }
+    .subtitle { text-align: center; color: #777; font-size: 13px; margin-bottom: 28px; }
+    .test-row { background: #fff; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.08); margin-bottom: 24px; overflow: hidden; }
+    .test-header { background: #fafafa; border-bottom: 1px solid #eee; padding: 12px 20px; display: flex; align-items: center; gap: 12px; }
+    .test-header .num { background: #4572A7; color: #fff; font-size: 12px; font-weight: 700; border-radius: 4px; padding: 2px 8px; }
+    .test-header .label { font-size: 15px; font-weight: 600; color: #333; }
+    .columns { display: grid; grid-template-columns: 1fr 1fr; }
+    .col { padding: 12px; }
+    .col-header { text-align: center; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #999; margin-bottom: 6px; }
+    .col-header.hc { color: #6c3483; }
+    .col-header.ec { color: #1a5276; }
+    .chart-box { width: 100%; height: 340px; }
+    .divider { width: 1px; background: #e8e8e8; }
+    .error { color: #c0392b; font-size: 12px; padding: 10px; }
+    @media (max-width: 900px) {
+      .columns { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Highcharts vs ECharts (HighchartsCompat)</h1>
+  <p class="subtitle">Left: native Highcharts v4.1.1 &nbsp;|&nbsp; Right: same config translated to ECharts via the wrapper</p>
+  <div id="root"></div>
+
+  <!-- jQuery (required by Highcharts v4.1.1) -->
+  <script src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
+  <!-- Highcharts v4.1.1 (local) -->
+  <script src="vendor/highcharts/highcharts.js"></script>
+  <!-- ECharts 5.x -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <!-- Our translation layer -->
+  <script src="highcharts-to-echarts.js"></script>
+
+  <script>
+    var tests = [
+      {
+        name: 'Basic Line (categories)',
+        config: {
+          chart: { type: 'line' },
+          title: { text: 'Monthly Temperatures' },
+          subtitle: { text: 'Source: Weather.com' },
+          xAxis: { categories: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'] },
+          yAxis: { title: { text: 'Temperature (\u00B0C)' } },
+          credits: { enabled: false },
+          series: [
+            { name: 'Tokyo', data: [7.0,6.9,9.5,14.5,18.2,21.5,25.2,26.5,23.3,18.3,13.9,9.6] },
+            { name: 'London', data: [3.9,4.2,5.7,8.5,11.9,15.2,17.0,16.6,14.2,10.3,6.6,4.8] }
+          ]
+        }
+      },
+      {
+        name: 'Stacked Area',
+        config: {
+          chart: { type: 'area' },
+          title: { text: 'Stacked Area Chart' },
+          xAxis: { categories: ['Mon','Tue','Wed','Thu','Fri'] },
+          yAxis: { title: { text: 'Count' } },
+          credits: { enabled: false },
+          plotOptions: { series: { stacking: 'normal' } },
+          series: [
+            { name: 'Emails', data: [50, 60, 45, 70, 55] },
+            { name: 'Calls', data: [30, 25, 40, 20, 35] },
+            { name: 'Meetings', data: [10, 15, 20, 12, 18] }
+          ]
+        }
+      },
+      {
+        name: 'Spline (smooth line)',
+        config: {
+          chart: { type: 'spline' },
+          title: { text: 'Wind Speed' },
+          xAxis: { categories: ['00:00','03:00','06:00','09:00','12:00','15:00','18:00','21:00'] },
+          yAxis: { title: { text: 'm/s' } },
+          credits: { enabled: false },
+          series: [
+            { name: 'Hestavollane', data: [3.7,3.3,3.9,5.1,3.5,3.8,4.0,5.0] },
+            { name: 'Vik', data: [0.2,0.1,0.2,0.5,0.3,2.2,1.4,2.6], dashStyle: 'Dash' }
+          ]
+        }
+      },
+      {
+        name: 'Column Chart',
+        config: {
+          chart: { type: 'column' },
+          title: { text: 'Quarterly Revenue' },
+          xAxis: { categories: ['Q1','Q2','Q3','Q4'] },
+          yAxis: { title: { text: 'Revenue ($M)' } },
+          credits: { enabled: false },
+          series: [{ name: 'Revenue', data: [42, 58, 63, 71] }]
+        }
+      },
+      {
+        name: 'Stacked Column',
+        config: {
+          chart: { type: 'column' },
+          title: { text: 'Fruit Consumption' },
+          xAxis: { categories: ['Apples','Oranges','Pears','Grapes','Bananas'] },
+          yAxis: { title: { text: 'Total' } },
+          credits: { enabled: false },
+          plotOptions: { column: { stacking: 'normal' } },
+          series: [
+            { name: 'John', data: [5, 3, 4, 7, 2] },
+            { name: 'Jane', data: [2, 2, 3, 2, 1] },
+            { name: 'Joe', data: [3, 4, 4, 2, 5] }
+          ]
+        }
+      },
+      {
+        name: 'Horizontal Bar (axis swap)',
+        config: {
+          chart: { type: 'bar' },
+          title: { text: 'Population by Country' },
+          xAxis: { categories: ['China','India','USA','Indonesia','Brazil'] },
+          yAxis: { title: { text: 'Population (millions)' } },
+          credits: { enabled: false },
+          series: [{ name: 'Population', data: [1439, 1380, 331, 273, 212] }]
+        }
+      },
+      {
+        name: 'Pie Chart',
+        config: {
+          chart: { type: 'pie' },
+          title: { text: 'Browser Market Share' },
+          credits: { enabled: false },
+          series: [{
+            name: 'Browsers',
+            data: [
+              { name: 'Chrome', y: 64.02 },
+              { name: 'Safari', y: 18.78 },
+              { name: 'Firefox', y: 4.18 },
+              { name: 'Edge', y: 4.12 },
+              { name: 'Other', y: 8.90 }
+            ]
+          }]
+        }
+      },
+      {
+        name: 'Donut Chart (innerSize)',
+        config: {
+          chart: { type: 'pie' },
+          title: { text: 'Device Share' },
+          credits: { enabled: false },
+          plotOptions: { pie: { innerSize: '50%' } },
+          series: [{
+            name: 'Devices',
+            data: [
+              { name: 'Mobile', y: 58.9 },
+              { name: 'Desktop', y: 31.2 },
+              { name: 'Tablet', y: 9.9 }
+            ]
+          }]
+        }
+      },
+      {
+        name: 'Scatter Chart',
+        config: {
+          chart: { type: 'scatter' },
+          title: { text: 'Height vs Weight' },
+          xAxis: { title: { text: 'Height (cm)' } },
+          yAxis: { title: { text: 'Weight (kg)' } },
+          credits: { enabled: false },
+          series: [{
+            name: 'Female',
+            color: '#FF6B6B',
+            data: [[161,51],[167,59],[159,49],[157,63],[155,53],[170,59],[159,47],[166,69],[176,66],[160,75]]
+          }, {
+            name: 'Male',
+            color: '#4ECDC4',
+            data: [[174,65],[175,71],[193,80],[186,72],[187,78],[181,74],[184,86],[178,55],[182,88],[177,73]]
+          }]
+        }
+      },
+      {
+        name: 'Bubble Chart',
+        config: {
+          chart: { type: 'bubble' },
+          title: { text: 'Sugar vs Fat (size = Calories)' },
+          xAxis: { title: { text: 'Sugar (g)' } },
+          yAxis: { title: { text: 'Fat (g)' } },
+          credits: { enabled: false },
+          series: [{
+            name: 'Foods',
+            data: [
+              { x: 95, y: 95, z: 13.8 },
+              { x: 86.5, y: 102.9, z: 14.7 },
+              { x: 80.8, y: 91.5, z: 15.8 },
+              { x: 80.4, y: 102.5, z: 12 },
+              { x: 80.3, y: 86.1, z: 11.8 },
+              { x: 78.4, y: 70.1, z: 16.6 },
+              { x: 74.2, y: 68.5, z: 14.5 },
+              { x: 73.5, y: 83.1, z: 10 },
+              { x: 71, y: 93.2, z: 24.7 }
+            ]
+          }]
+        }
+      },
+      {
+        name: 'Combo (Column + Line, dual Y-axis)',
+        config: {
+          title: { text: 'Rainfall & Temperature' },
+          xAxis: { categories: ['Jan','Feb','Mar','Apr','May','Jun'] },
+          yAxis: [
+            { title: { text: 'Rainfall (mm)' } },
+            { title: { text: 'Temperature (\u00B0C)' }, opposite: true }
+          ],
+          credits: { enabled: false },
+          series: [
+            { name: 'Rainfall', type: 'column', data: [49, 71, 106, 129, 144, 176] },
+            { name: 'Temperature', type: 'line', yAxis: 1, data: [7, 6.9, 9.5, 14.5, 18.4, 21.5], color: '#FF5733' }
+          ]
+        }
+      },
+      {
+        name: 'Percent Stacked Column',
+        config: {
+          chart: { type: 'column' },
+          title: { text: 'Market Share (%)' },
+          xAxis: { categories: ['2020','2021','2022','2023'] },
+          yAxis: { title: { text: 'Percent' } },
+          credits: { enabled: false },
+          plotOptions: { series: { stacking: 'percent' } },
+          series: [
+            { name: 'Product A', data: [30, 40, 35, 50] },
+            { name: 'Product B', data: [50, 30, 45, 30] },
+            { name: 'Product C', data: [20, 30, 20, 20] }
+          ]
+        }
+      },
+      {
+        name: 'Custom Tooltip Formatter',
+        config: {
+          chart: { type: 'column' },
+          title: { text: 'Sales by Region' },
+          xAxis: { categories: ['North','South','East','West'] },
+          yAxis: { title: { text: 'Sales ($K)' } },
+          credits: { enabled: false },
+          tooltip: {
+            formatter: function () {
+              return '<b>' + this.series.name + '</b><br/>' +
+                     this.x + ': $' + this.y + 'K';
+            }
+          },
+          series: [
+            { name: '2023', data: [120, 90, 150, 80] },
+            { name: '2024', data: [140, 110, 170, 95] }
+          ]
+        }
+      },
+      {
+        name: 'Custom Colors, Legend Disabled',
+        config: {
+          chart: { type: 'line' },
+          title: { text: 'Custom Palette' },
+          colors: ['#E74C3C', '#3498DB', '#2ECC71', '#F39C12'],
+          legend: { enabled: false },
+          xAxis: { categories: ['A','B','C','D','E'] },
+          yAxis: { title: { text: 'Value' } },
+          credits: { enabled: false },
+          series: [
+            { name: 'S1', data: [1, 3, 2, 5, 4] },
+            { name: 'S2', data: [5, 4, 3, 2, 1] },
+            { name: 'S3', data: [3, 3, 3, 3, 3] }
+          ]
+        }
+      },
+      {
+        name: 'Area Spline',
+        config: {
+          chart: { type: 'areaspline' },
+          title: { text: 'Average Fruit Consumption' },
+          xAxis: { categories: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] },
+          yAxis: { title: { text: 'Fruit units' } },
+          credits: { enabled: false },
+          plotOptions: { areaspline: { marker: { enabled: false } } },
+          series: [
+            { name: 'John', data: [3,4,3,5,4,10,12] },
+            { name: 'Jane', data: [1,3,4,3,3,5,4] }
+          ]
+        }
+      }
+    ];
+
+    // Deep clone helper (handles functions)
+    function deepClone(obj) {
+      if (obj === null || typeof obj !== 'object') return obj;
+      if (typeof obj === 'function') return obj;
+      if (Array.isArray(obj)) return obj.map(deepClone);
+      var clone = {};
+      for (var k in obj) {
+        if (obj.hasOwnProperty(k)) clone[k] = deepClone(obj[k]);
+      }
+      return clone;
+    }
+
+    var root = document.getElementById('root');
+
+    tests.forEach(function (test, i) {
+      // -- Build DOM --
+      var row = document.createElement('div');
+      row.className = 'test-row';
+
+      var header = document.createElement('div');
+      header.className = 'test-header';
+      header.innerHTML = '<span class="num">' + (i + 1) + '</span><span class="label">' + test.name + '</span>';
+      row.appendChild(header);
+
+      var columns = document.createElement('div');
+      columns.className = 'columns';
+
+      // Left: Highcharts
+      var colHC = document.createElement('div');
+      colHC.className = 'col';
+      colHC.innerHTML = '<div class="col-header hc">Highcharts v4.1.1</div>';
+      var boxHC = document.createElement('div');
+      boxHC.className = 'chart-box';
+      boxHC.id = 'hc-' + i;
+      colHC.appendChild(boxHC);
+      columns.appendChild(colHC);
+
+      // Right: ECharts
+      var colEC = document.createElement('div');
+      colEC.className = 'col';
+      colEC.innerHTML = '<div class="col-header ec">ECharts (via wrapper)</div>';
+      var boxEC = document.createElement('div');
+      boxEC.className = 'chart-box';
+      boxEC.id = 'ec-' + i;
+      colEC.appendChild(boxEC);
+      columns.appendChild(colEC);
+
+      row.appendChild(columns);
+      root.appendChild(row);
+
+      // -- Render Highcharts (left) --
+      try {
+        var hcConf = deepClone(test.config);
+        hcConf.chart = hcConf.chart || {};
+        hcConf.chart.renderTo = boxHC;
+        new Highcharts.Chart(hcConf);
+      } catch (err) {
+        var e1 = document.createElement('div');
+        e1.className = 'error';
+        e1.textContent = 'Highcharts error: ' + err.message;
+        boxHC.appendChild(e1);
+        console.error('[HC FAIL] ' + test.name, err);
+      }
+
+      // -- Render ECharts via wrapper (right) --
+      try {
+        var ecConf = deepClone(test.config);
+        HighchartsCompat.chart(boxEC, ecConf);
+      } catch (err) {
+        var e2 = document.createElement('div');
+        e2.className = 'error';
+        e2.textContent = 'ECharts error: ' + err.message;
+        boxEC.appendChild(e2);
+        console.error('[EC FAIL] ' + test.name, err);
+      }
+    });
+  </script>
+</body>
+</html>
