@@ -493,7 +493,7 @@
         ec.data = convertPieData(resolved.data);
         // Donut: innerSize
         var innerSize = resolved.innerSize || resolved.innerRadius;
-        var outerSize = resolved.size || '90%';
+        var outerSize = resolved.size || '70%';
         if (innerSize) {
           var inner = isString(innerSize) ? innerSize : (isNumber(innerSize) ? innerSize + 'px' : innerSize + '%');
           var outer = isString(outerSize) ? outerSize : outerSize + '%';
@@ -501,8 +501,8 @@
         } else {
           ec.radius = isString(outerSize) ? outerSize : outerSize + '%';
         }
-        // Center
-        if (resolved.center) ec.center = resolved.center;
+        // Center — shift down slightly to avoid overlapping with title
+        ec.center = resolved.center || ['50%', '55%'];
         // Start angle (HC: 0 = 12 o'clock, EC: 90 = 12 o'clock)
         if (resolved.startAngle != null) {
           ec.startAngle = 90 - resolved.startAngle;
