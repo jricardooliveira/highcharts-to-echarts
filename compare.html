@@ -35,9 +35,11 @@
   <script src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
   <!-- Highcharts v4.1.1 (local) -->
   <script src="vendor/highcharts/highcharts.js"></script>
+  <!-- Save the REAL Highcharts before the wrapper overwrites it -->
+  <script>var RealHighcharts = window.Highcharts;</script>
   <!-- ECharts 5.x -->
   <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
-  <!-- Our translation layer -->
+  <!-- Our translation layer (this overwrites window.Highcharts with the shim) -->
   <script src="highcharts-to-echarts.js"></script>
 
   <script>
@@ -344,7 +346,7 @@
         var hcConf = deepClone(test.config);
         hcConf.chart = hcConf.chart || {};
         hcConf.chart.renderTo = boxHC;
-        new Highcharts.Chart(hcConf);
+        new RealHighcharts.Chart(hcConf);
       } catch (err) {
         var e1 = document.createElement('div');
         e1.className = 'error';
