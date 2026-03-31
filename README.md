@@ -4,6 +4,8 @@ A standalone, zero-dependency translation layer that converts [Highcharts](https
 
 Includes a full **Highcharts API shim** so that `new Highcharts.Chart(config)` works out of the box. Just swap the script tags.
 
+**[Live Demo — Side-by-side comparison (Highcharts vs ECharts)](https://jricardooliveira.github.io/highcharts-to-echarts/compare.html)**
+
 ## Quick Start
 
 ### Before (Highcharts)
