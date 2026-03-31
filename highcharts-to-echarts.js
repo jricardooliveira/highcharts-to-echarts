@@ -18,7 +18,7 @@
  *   var option = HighchartsCompat.convert(highchartsConfig);
  *   var chart = HighchartsCompat.chart('container', highchartsConfig);
  *
- * Supported chart types: line, area, spline, areaspline, column, bar, pie, donut, scatter, bubble
+ * Supported chart types: line, area, spline, areaspline, column, bar, pie, donut, scatter, bubble, funnel, map
  * Supported features: stacking (normal/percent), dual y-axis, tooltip formatters,
  *   markers, dash styles, data labels, custom palettes, legend configuration
  *
@@ -28,7 +28,7 @@
  *   3. Drilldown — not supported
  *   4. Axis plotLines/plotBands — partial support via markLine/markArea
  *   5. Custom SVG renderer features — no equivalent in ECharts
- *   6. Highmaps — not supported
+ *   6. Highmaps — basic choropleth world map supported; advanced map features (drill-down, map navigation buttons) not supported
  */
 (function (global) {
   'use strict';
@@ -362,6 +362,23 @@
     });
   }
 
+  function convertMapData(data, joinBy) {
+    if (!isArray(data)) return [];
+    // joinBy: [mapProperty, dataProperty] or string
+    var dataKey = 'code';
+    if (isArray(joinBy) && joinBy.length >= 2) {
+      dataKey = joinBy[1];
+    } else if (isString(joinBy)) {
+      dataKey = joinBy;
+    }
+    return data.map(function (d) {
+      if (isObject(d)) {
+        return { name: d.name || d[dataKey] || '', value: d.value != null ? d.value : d.y };
+      }
+      return d;
+    });
+  }
+
   function convertBubbleData(data) {
     if (!isArray(data)) return [];
     return data.map(function (d) {
@@ -458,6 +475,12 @@
         case 'bubble':
           ec.type = 'scatter';
           break;
+        case 'funnel':
+          ec.type = 'funnel';
+          break;
+        case 'map':
+          ec.type = 'map';
+          break;
         default:
           ec.type = 'line';
       }
@@ -469,7 +492,7 @@
         var innerSize = resolved.innerSize || resolved.innerRadius;
         var outerSize = resolved.size || '75%';
         if (innerSize) {
-          var inner = isString(innerSize) ? innerSize : innerSize + '%';
+          var inner = isString(innerSize) ? innerSize : (isNumber(innerSize) ? innerSize + 'px' : innerSize + '%');
           var outer = isString(outerSize) ? outerSize : outerSize + '%';
           ec.radius = [inner, outer];
         } else {
@@ -477,9 +500,65 @@
         }
         // Center
         if (resolved.center) ec.center = resolved.center;
-        // Start angle
+        // Start angle (HC: 0 = 12 o'clock, EC: 90 = 12 o'clock)
         if (resolved.startAngle != null) {
           ec.startAngle = 90 - resolved.startAngle;
+        }
+        // End angle (for semi-circles etc.)
+        if (resolved.endAngle != null) {
+          // HC endAngle is absolute degrees; convert to ECharts
+          ec.endAngle = 90 - resolved.endAngle;
+        }
+        // Data labels with connectors
+        var pieDL = resolved.dataLabels || {};
+        if (pieDL.enabled === false) {
+          ec.label = { show: false };
+          ec.labelLine = { show: false };
+        } else if (pieDL.enabled || pieDL.format || pieDL.distance != null || pieDL.inside != null) {
+          ec.label = { show: true };
+          if (pieDL.inside) {
+            ec.label.position = 'inside';
+          } else {
+            ec.label.position = 'outside';
+          }
+          if (pieDL.distance != null) ec.label.distance = pieDL.distance;
+          if (pieDL.format) {
+            ec.label.formatter = convertLabelFormat(pieDL.format);
+          } else if (pieDL.pointFormat) {
+            // Common: show percentage
+            ec.label.formatter = function (params) {
+              return params.name + ': ' + (params.percent || 0).toFixed(1) + '%';
+            };
+          }
+          var dlS = cssToEchartsTextStyle(pieDL.style);
+          if (dlS) {
+            if (dlS.fontSize) ec.label.fontSize = dlS.fontSize;
+            if (dlS.fontWeight) ec.label.fontWeight = dlS.fontWeight;
+            if (dlS.color) ec.label.color = dlS.color;
+          }
+          // Connector lines
+          ec.labelLine = { show: true };
+          if (pieDL.connectorColor) ec.labelLine.lineStyle = { color: pieDL.connectorColor };
+          if (pieDL.connectorWidth) {
+            ec.labelLine.lineStyle = ec.labelLine.lineStyle || {};
+            ec.labelLine.lineStyle.width = pieDL.connectorWidth;
+          }
+        }
+        // Selection
+        if (resolved.allowPointSelect) {
+          ec.selectedMode = 'single';
+          ec.select = { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.3)' } };
+        }
+        // Hover emphasis
+        var hoverState = get(resolved, 'states.hover');
+        if (hoverState) {
+          ec.emphasis = ec.emphasis || {};
+          ec.emphasis.itemStyle = ec.emphasis.itemStyle || {};
+          if (hoverState.brightness != null) {
+            // Approximate brightness with shadow
+            ec.emphasis.itemStyle.shadowBlur = 10;
+            ec.emphasis.itemStyle.shadowColor = 'rgba(0,0,0,0.3)';
+          }
         }
       } else if (hcType === 'bubble') {
         ec.data = convertBubbleData(resolved.data);
@@ -487,6 +566,43 @@
           var z = isArray(val) ? val[2] : 0;
           return Math.max(Math.sqrt(Math.abs(z)) * 4, 4);
         };
+      } else if (hcType === 'funnel') {
+        ec.data = convertPieData(resolved.data); // same format: {name, y} → {name, value}
+        ec.sort = resolved.reversed ? 'ascending' : 'descending';
+        ec.left = '10%';
+        ec.right = '10%';
+        ec.top = '10%';
+        ec.bottom = '10%';
+        // neckWidth → minSize
+        if (resolved.neckWidth) {
+          ec.minSize = resolved.neckWidth;
+        } else {
+          ec.minSize = '30%';
+        }
+        ec.maxSize = resolved.width || '80%';
+        ec.gap = 2;
+        // Label
+        ec.label = { show: true, position: 'outside' };
+        if (resolved.dataLabels) {
+          if (resolved.dataLabels.enabled === false) ec.label.show = false;
+          if (resolved.dataLabels.inside) ec.label.position = 'inside';
+          if (resolved.dataLabels.format) {
+            ec.label.formatter = convertLabelFormat(resolved.dataLabels.format);
+          }
+        }
+        ec.labelLine = { show: true, lineStyle: { color: '#ccc' } };
+      } else if (hcType === 'map') {
+        // Map series — handled specially in orchestrator
+        ec.data = convertMapData(resolved.data, resolved.joinBy);
+        ec.map = '_hc_world'; // registered in orchestrator
+        ec.roam = true;
+        ec.label = { show: false };
+        ec.itemStyle = { areaColor: '#eee', borderColor: '#ccc' };
+        ec.emphasis = {
+          label: { show: true },
+          itemStyle: { areaColor: '#FFD700' }
+        };
+        if (resolved.name) ec.name = resolved.name;
       } else {
         ec.data = convertCartesianData(resolved.data);
       }
@@ -817,6 +933,81 @@
   }
 
   // ============================================================
+  // Section 9b: Map Support
+  // ============================================================
+
+  // Convert Highcharts map GeoJSON (with hc-transform projections) to standard GeoJSON
+  // that ECharts can use. Strips the hc-transform and uses coordinates as-is,
+  // which works well enough for choropleth display.
+  function registerHighchartsMap(hcConfig) {
+    var series = hcConfig.series || [];
+    series.forEach(function (s) {
+      if (s.mapData && s.mapData.features) {
+        var geoJson = {
+          type: 'FeatureCollection',
+          features: s.mapData.features.map(function (f) {
+            // Map hc-key/hc-a2/name to ECharts-compatible properties
+            var props = f.properties || {};
+            return {
+              type: 'Feature',
+              id: f.id || props['hc-key'] || props['hc-a2'],
+              properties: {
+                name: props.name || props['hc-key'] || f.id,
+                'hc-key': props['hc-key'],
+                'hc-a2': props['hc-a2'],
+                'iso-a3': props['iso-a3']
+              },
+              geometry: f.geometry
+            };
+          })
+        };
+        echarts.registerMap('_hc_world', geoJson);
+      }
+    });
+  }
+
+  // Convert Highcharts colorAxis to ECharts visualMap
+  function convertColorAxis(colorAxis) {
+    var ca = isArray(colorAxis) ? colorAxis[0] : colorAxis;
+    var vm = { show: true, calculable: true };
+
+    if (ca.min != null) vm.min = ca.min;
+    if (ca.max != null) vm.max = ca.max;
+
+    // Color stops or min/max colors
+    if (ca.stops) {
+      vm.inRange = {
+        color: ca.stops.map(function (s) { return s[1]; })
+      };
+    } else if (ca.minColor || ca.maxColor) {
+      vm.inRange = {
+        color: [ca.minColor || '#EEEEFF', ca.maxColor || '#000022']
+      };
+    }
+
+    // Type
+    if (ca.type === 'logarithmic') {
+      // ECharts visualMap doesn't have log scale, but we can use piecewise
+      vm.type = 'piecewise';
+    } else {
+      vm.type = 'continuous';
+    }
+
+    // Labels
+    if (ca.labels && ca.labels.format) {
+      vm.formatter = function (value) {
+        return ca.labels.format.replace('{value}', value);
+      };
+    }
+
+    // Position (bottom-left by default, matching Highcharts)
+    vm.left = 'left';
+    vm.bottom = 20;
+
+    return vm;
+  }
+
+  // ============================================================
   // Section 10: Top-Level Orchestrator
   // ============================================================
 
@@ -830,14 +1021,22 @@
     var isBarChart = globalType === 'bar' ||
       series.some(function (s) { return s.type === 'bar'; });
 
-    // Detect pie-only chart (no cartesian axes needed)
-    var isPieOnly = (series.length > 0) && series.every(function (s) {
+    // Detect non-cartesian charts (no axes needed)
+    var isNonCartesian = (series.length > 0) && series.every(function (s) {
       var t = s.type || globalType;
-      return t === 'pie';
+      return t === 'pie' || t === 'funnel' || t === 'map';
     });
+
+    // Detect map chart
+    var isMapChart = globalType === 'map' || series.some(function (s) { return s.type === 'map'; });
 
     var palette = resolvePalette(hcConfig);
     var option = {};
+
+    // Register map data if needed
+    if (isMapChart && typeof echarts !== 'undefined') {
+      registerHighchartsMap(hcConfig);
+    }
 
     // Title
     var titleResult = convertTitle(hcConfig);
@@ -851,8 +1050,13 @@
     var tooltipResult = convertTooltip(hcConfig);
     if (tooltipResult.tooltip) option.tooltip = tooltipResult.tooltip;
 
+    // colorAxis → visualMap (for maps and other color-mapped charts)
+    if (hcConfig.colorAxis) {
+      option.visualMap = convertColorAxis(hcConfig.colorAxis);
+    }
+
     // Axes (only for cartesian charts)
-    if (!isPieOnly) {
+    if (!isNonCartesian) {
       var axesResult = convertAxes(hcConfig, isBarChart);
       option.xAxis = axesResult.xAxis;
       option.yAxis = axesResult.yAxis;
